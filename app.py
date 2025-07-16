@@ -113,7 +113,7 @@
 #                 mime="text/csv"
 #             )
 
-import openai
+
 import PyPDF2
 import io
 import requests
