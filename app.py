@@ -114,7 +114,7 @@
 #             )
 
 
-# import PyPDF2
+import PyPDF2
 import io
 import requests
 from bs4 import BeautifulSoup
