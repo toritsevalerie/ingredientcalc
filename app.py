@@ -120,6 +120,10 @@ import requests
 from bs4 import BeautifulSoup
 import streamlit as st
 import pandas as pd
+import PyPDF2
+# import pytesseract
+from PIL import Image
+import io
 
 # --- Set default page if no page has been selected yet ---
 if "page" not in st.session_state:
@@ -133,19 +137,23 @@ st.title("Simple tools for regulatory teams.")
 st.write("")
 
 # --- Create 3 columns for main navigation buttons ---
-col1, col2, col3 = st.columns([1, 1, 1])
+col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
 
 with col1:
     if st.button("Ingredient Calculator"):
         st.session_state.page = "calculator"
 
 with col2:
-    if st.button("Regulatory Rule Explainer"):
-        st.session_state.page = "rule_finder"
+    if st.button("Compliance Review Assistant"):
+        st.session_state.page = "compliance_review_tool"
 
 with col3:
-    if st.button("🔍 Search Online for Regulatory Rules"):
-        st.session_state.page = "scraper"
+    if st.button("Claims Repository/Dashboard"):
+        st.session_state.page = "claim_repository"
+
+with col4: 
+    if st.button("Regulatory Search Assistant"):
+        st.session_state.page = "search_assistant"
 
 # --- INGREDIENT CALCULATOR TOOL ---
 if st.session_state.page == "calculator":
@@ -217,6 +225,214 @@ if st.session_state.page == "calculator":
                 file_name="converted_nutrition_data.csv",
                 mime="text/csv"
             )
+
+
+# Complaince Assistant Tool 
+# Help regulatory folks quickly review ingredients, artwork, and claims to catch anything non-compliant
+
+if st.session_state.page == "compliance_review_tool":
+    st.title('👩🏽‍💻 Compliance Review Assistant')
+    st.write('Upload your files or paste content to instantly review ingredients, labels, artwork and claims for potential compliance issues')
+    st.caption("⚠️ Image/Artwork Uploads not yet supported in this version.")
+
+    # store uploaded file as a variable and let pdf, images etc be able to be uploaded 
+    uploaded_file = st.file_uploader("Upload or drag and drop a file (like a spec sheet, label, or claims document), or paste your ingredient list or marketing claims below", type=["pdf", "jpeg", "jpg", "png"])
+    # store text submissison input field 
+    uploaded_text = st.text_area('Paste your ingredient list or marketing claims here', placeholder=" e.g water, glycerin etc")
+
+    # detect if anything was submitted 
+    if uploaded_file or uploaded_text.strip():
+        with st.spinner('give me a second...'):
+            import time
+            time.sleep(1)
+
+        st.subheader('Which country are you reviewing this for?')
+        country = st.selectbox(
+            "Choose a Country",
+            ["-- Select a Country --", "Canada", "United States", "United Kingdom", "Australia", "New Zealand"]
+        )
+        
+        if country != "-- Select a Country --":
+            st.subheader("What would you like to focus on?")
+            review_option = st.radio(
+                "Do you want to review everything, or focus on something specific?",
+                ["Review everything", "Focus on a specific section"]
+        )
+            specific_focus = ""
+            if review_option == "Focus on a specific section":
+                st.text_input("What specific section would you like to focus on?", placeholder=("e.g is the vegan claim okay?"))
+
+        if st.button("Run Compliance Check"):
+            with st.spinner("Checking against Health Canada and CFIA..."):
+                time.sleep(2)
+
+            # Pretend output (mock results)
+            st.success("✅ Review complete")
+
+            st.markdown("### 📝 Findings")
+            st.markdown(f"""
+            **Claim Reviewed:** `{specific_focus or 'All available text'}`
+            
+            **Result:** ⚠️ *The claim 'vegan' is not explicitly defined under Canadian food labeling regulations.*
+            
+            However, per [CFIA Guidance on Plant-Based Foods](https://inspection.canada.ca), such claims may be used if **not misleading** and compliant with ingredient definitions.
+
+            **Next Steps:** Ensure no animal-derived ingredients are present. Consider including a clarifying statement like "suitable for vegans".
+            """)
+
+            # Internal note section
+            internal_note = st.text_area("📌 Add internal note for team (optional)", placeholder="e.g. Reviewed by Sam. Need to confirm if enzyme source is animal-free.")
+
+            # Status dropdown
+            status = st.selectbox("Set review status", ["In Progress", "Reviewed", "Needs Follow-up"])
+            st.write(f"🗂️ Status saved as: **{status}**")
+
+if st.session_state.page == "claim_repository":
+    st.title("🗃️ Claim Repository")
+    st.write("This is a **mockup interface** to demonstrate how regulatory teams might browse and manage previously reviewed claims.")
+
+    st.caption("⚠️ This is a static prototype for demo purposes only. Features like file uploads, editing, and downloads are not functional yet. More capabilities will be added.")
+
+    # ---------------------------
+    # Instructions
+    st.subheader("🔍 What You Can Do Here")
+    st.markdown("""
+    - View a searchable list of previously reviewed claims  
+    - Filter by category, product, or approval status  
+    - Click on a claim to see its full details  
+    """)
+
+    st.info("This tool is designed to help regulatory teams avoid duplicate reviews, find substantiation, and reuse already-approved language.")
+
+    # ---------------------------
+    # Sample claim data (mock)
+    sample_data = pd.DataFrame({
+        "Claim Text": ["Supports immune function", "Boosts energy levels", "Aids digestion"],
+        "Product": ["Nestlé Protein Shake", "Vital Energy Bar", "Gut Health Gummies"],
+        "Category": ["Immunity", "Energy", "Digestion"],
+        "Status": ["Approved", "In Review", "Rejected"],
+        "Review Date": ["2024-10-15", "2025-02-01", "2025-03-12"],
+    })
+
+    # ---------------------------
+    # Search & Filter Controls
+    st.subheader("🔎 Search & Filter")
+
+    search_term = st.text_input("Search claims by keyword", "")
+    category_filter = st.selectbox("Filter by Category", ["All"] + sorted(sample_data["Category"].unique()))
+    product_filter = st.selectbox("Filter by Product", ["All"] + sorted(sample_data["Product"].unique()))
+    status_filter = st.selectbox("Filter by Approval Status", ["All"] + sorted(sample_data["Status"].unique()))
+
+    # Apply filters
+    filtered_data = sample_data.copy()
+
+    if search_term:
+        filtered_data = filtered_data[filtered_data["Claim Text"].str.contains(search_term, case=False)]
+
+    if category_filter != "All":
+        filtered_data = filtered_data[filtered_data["Category"] == category_filter]
+
+    if product_filter != "All":
+        filtered_data = filtered_data[filtered_data["Product"] == product_filter]
+
+    if status_filter != "All":
+        filtered_data = filtered_data[filtered_data["Status"] == status_filter]
+
+    # ---------------------------
+    # Table View
+    st.subheader("📊 Table View")
+    st.dataframe(filtered_data)
+
+    # ---------------------------
+    # Expander View
+    st.subheader("🎴 Reviewed Claims")
+
+    if filtered_data.empty:
+        st.warning("No claims found with the selected filters or search term.")
+    else:
+        for index, row in filtered_data.iterrows():
+            with st.expander(f"{row['Claim Text']} – {row['Product']}"):
+                st.markdown(f"""
+                **🧠 Category:** {row['Category']}  
+                **✅ Status:** {row['Status']}  
+                **📅 Reviewed On:** {row['Review Date']}  
+                **🔗 Substantiation File:** [View PDF](#)  
+                **👩‍⚖️ Reviewed By:** M.T.  
+                **🏷️ Tags:** adult, protein, Canada  
+                **📚 Source Link:** [CFIA Regulation](#)
+                """)
+
+# #Claim Repository Tool 
+
+# # If this page is selected, display the Claim Repository prototype
+# if st.session_state.page == "claim_repository":
+#     st.title("🗃️ Claim Repository")
+#     st.write("This is a **mockup interface** to demonstrate how regulatory teams might browse and manage previously reviewed claims.")
+
+#     st.caption("⚠️ This is a static prototype for demo purposes only. Features like file uploads, editing, and downloads are not functional yet. More capabilities will be added.")
+
+#     # Instructions
+#     st.subheader("🔍 What You Can Do Here")
+#     st.markdown("""
+#     - View a searchable list of previously reviewed claims
+#     - Filter by category, product, or approval status
+#     - Click on a claim to see its full details
+#     """)
+#     sample_data = pd.DataFrame({
+#         "Claim Text": ["Supports immune function", "Boosts energy levels", "Aids digestion"],
+#         "Product": ["Nestlé Protein Shake", "Vital Energy Bar", "Gut Health Gummies"],
+#         "Category": ["Immunity", "Energy", "Digestion"],
+#         "Status": ["Approved", "In Review", "Rejected"],
+#         "Review Date": ["2024-10-15", "2025-02-01", "2025-03-12"],
+#     })
+#     # --- Search and Filter Controls ---
+#     st.subheader("🔎 Search & Filter")
+
+#     search_term = st.text_input("Search claims by keyword", "")
+#     category_filter = st.selectbox("Filter by Category", ["All"] + sorted(sample_data["Category"].unique()))
+#     product_filter = st.selectbox("Filter by Product", ["All"] + sorted(sample_data["Product"].unique()))
+#     status_filter = st.selectbox("Filter by Approval Status", ["All"] + sorted(sample_data["Status"].unique()))
+
+#     # --- Filter the data ---
+#     filtered_data = sample_data.copy()
+
+#     if search_term:
+#         filtered_data = filtered_data[filtered_data["Claim Text"].str.contains(search_term, case=False)]
+
+#     if category_filter != "All":
+#         filtered_data = filtered_data[filtered_data["Category"] == category_filter]
+
+#     if product_filter != "All":
+#         filtered_data = filtered_data[filtered_data["Product"] == product_filter]
+
+#     if status_filter != "All":
+#         filtered_data = filtered_data[filtered_data["Status"] == status_filter]
+
+#     # Optional note for context
+#     st.info("This tool is designed to help regulatory teams avoid duplicate reviews, find substantiation, and reuse already-approved language.")
+
+#     # Sample placeholder data for the prototype
+    
+
+#     st.subheader("📋 Claims Table")
+#     st.dataframe(filtered_data) 
+
+#     st.subheader("📋 Reviewed Claims)")
+
+#     for index, row in filtered_data.iterrows():
+#         with st.expander(f"{row['Claim Text']} – {row['Product']}"):
+#             st.markdown(f"""
+#             **🧠 Category:** {row['Category']}  
+#             **✅ Status:** {row['Status']}  
+#             **📅 Reviewed On:** {row['Review Date']}  
+#             **🔗 Substantiation File:** [View PDF](#)  
+#             **👩‍⚖️ Reviewed By:** M.T.  
+#             **🏷️ Tags:** adult, protein, Canada  
+#             **📚 Source Link:** [CFIA Regulation](#)
+#             """)         
+    
+
+
 
 
 # # --- PDF RULE FINDER + AI EXPLAINER TOOL ---
